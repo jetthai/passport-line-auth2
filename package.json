@@ -11,7 +11,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@github.com/@jetthai/passport-line-auth2.git"
+    "url": "git+ssh://git@github.com/jetthai/passport-line-auth2.git"
   },
   "keywords": [
     "line",
@@ -23,9 +23,9 @@
   "author": "Jetthai",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/@jetthai/passport-line-auth2/issues"
+    "url": "https://github.com/jetthai/passport-line-auth2/issues"
   },
-  "homepage": "https://github.com/@jetthai/passport-line-auth2#readme",
+  "homepage": "https://github.com/jetthai/passport-line-auth2#readme",
   "engines": {
     "node": ">= 0.4.0",
     "yarn": ">= 0.8.0"
