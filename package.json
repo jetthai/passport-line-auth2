@@ -1,6 +1,6 @@
 {
   "name": "@jetthai/passport-line-auth2",
-  "version": "2.0.10",
+  "version": "2.0.11",
   "description": "Line Authentication Strategy for Passport",
   "main": "./dist",
   "scripts": {
@@ -11,7 +11,7 @@
     "test": "ava --verbose",
     "coverage": "rm -rf .nyc_output && nyc ava",
     "codecov": "nyc report --reporter=text-lcov > coverage.lcov && codecov",
-    "release": "standard-version && git push --follow-tags origin master && npm publish"
+    "release": "npm run prebuild && npm run build && standard-version && git push --follow-tags origin master && npm publish dist"
   },
   "repository": {
     "type": "git",
@@ -34,6 +34,9 @@
     "node": ">= 0.4.0",
     "yarn": ">= 0.8.0"
   },
+  "files": [
+    "dist/**/*"
+  ],
   "dependencies": {
     "passport": "^0.7.0",
     "passport-oauth2": "^1.8.0",
