@@ -2,8 +2,9 @@
   "name": "@jetthai/passport-line-auth2",
   "version": "2.0.6",
   "description": "Line Authentication Strategy for Passport",
-  "main": "./lib",
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepare": "npm run build",
     "start": "node ./example/app.js",
     "test": "ava --verbose",
     "coverage": "rm -rf .nyc_output && nyc ava",
