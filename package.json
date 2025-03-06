@@ -1,6 +1,6 @@
 {
   "name": "passport-line-auth2",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Line Authentication Strategy for Passport",
   "main": "./lib",
   "scripts": {
