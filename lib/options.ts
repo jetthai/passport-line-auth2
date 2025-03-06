@@ -1,4 +1,4 @@
-import { StrategyOptions } from 'passport-oauth2';
+import {StrategyOptions, StrategyOptionsWithRequest} from 'passport-oauth2';
 
 export const defaultOptions = {
 	useAuthorizationHeaderforGET: true,
@@ -20,4 +20,4 @@ export type LineStrategyOptions = {
 	tokenURL?: string;
 	profileURL?: string;
 	prompt?: string;
-} & StrategyOptions;
+} & StrategyOptionsWithRequest;

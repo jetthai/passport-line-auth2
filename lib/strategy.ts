@@ -1,4 +1,4 @@
-import OAuth2Strategy, { InternalOAuthError, VerifyFunction } from 'passport-oauth2';
+import OAuth2Strategy, { InternalOAuthError, VerifyFunctionWithRequest } from 'passport-oauth2';
 import { defaultOptions, LineStrategyOptions } from './options';
 import { Request } from 'express';
 import { LineAuthorizationError } from './errors';
@@ -16,7 +16,7 @@ export class Strategy extends OAuth2Strategy {
 	 * @param _options - 策略的配置選項
 	 * @param verify - 用於驗證用戶身份的回調函數
 	 */
-	constructor(_options: LineStrategyOptions, verify: VerifyFunction) {
+	constructor(_options: LineStrategyOptions, verify: VerifyFunctionWithRequest) {
 		if (!_options) {
 			throw new TypeError('Options must be setting.');
 		}
