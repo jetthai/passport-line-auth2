@@ -6,12 +6,12 @@
   "scripts": {
     "prebuild": "rimraf dist",
     "build": "tsc -p tsconfig.build.json",
-    "prepare": "npm run build",
+    "prepare": "yarn run build",
     "start": "node ./example/app.js",
     "test": "ava --verbose",
     "coverage": "rm -rf .nyc_output && nyc ava",
     "codecov": "nyc report --reporter=text-lcov > coverage.lcov && codecov",
-    "release": "npm run prebuild && npm run build && standard-version && git push --follow-tags origin master && npm publish"
+    "release": "yarn run prebuild && yarn run build && standard-version && git push --follow-tags origin master && yarn publish"
   },
   "repository": {
     "type": "git",
