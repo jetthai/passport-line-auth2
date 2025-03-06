@@ -2,6 +2,7 @@
   "name": "@jetthai/passport-line-auth2",
   "version": "2.0.8",
   "description": "Line Authentication Strategy for Passport",
+  "main": "./dist",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "prepare": "npm run build",
