@@ -11,7 +11,7 @@
     "test": "ava --verbose",
     "coverage": "rm -rf .nyc_output && nyc ava",
     "codecov": "nyc report --reporter=text-lcov > coverage.lcov && codecov",
-    "release": "yarn run prebuild && yarn run build && standard-version && git push --follow-tags origin master && yarn publish"
+    "release": "yarn run prebuild && yarn run build && standard-version && git push --follow-tags origin master && npm publish"
   },
   "repository": {
     "type": "git",
