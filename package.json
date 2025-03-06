@@ -4,6 +4,7 @@
   "description": "Line Authentication Strategy for Passport",
   "main": "./dist",
   "scripts": {
+    "prebuild": "rimraf dist",
     "build": "tsc -p tsconfig.build.json",
     "prepare": "npm run build",
     "start": "node ./example/app.js",
@@ -35,7 +36,8 @@
   },
   "dependencies": {
     "passport": "^0.7.0",
-    "passport-oauth2": "^1.8.0"
+    "passport-oauth2": "^1.8.0",
+    "rimraf": "^6.0.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.0",
