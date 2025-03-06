@@ -1,4 +1,4 @@
-import {StrategyOptions, StrategyOptionsWithRequest} from 'passport-oauth2';
+import { StrategyOptions, StrategyOptionsWithRequest } from 'passport-oauth2';
 
 export const defaultOptions = {
 	useAuthorizationHeaderforGET: true,
@@ -10,14 +10,14 @@ export const defaultOptions = {
 	uiLocales: null,
 };
 
-export type LineStrategyOptions = {
+export interface LineStrategyOptions extends StrategyOptionsWithRequest {
 	channelID: string;
 	channelSecret: string;
 	botPrompt?: string;
 	scope?: string[];
 	uiLocales?: string;
-	authorizationURL?: string;
-	tokenURL?: string;
+	authorizationURL: string;
+	tokenURL: string;
 	profileURL?: string;
 	prompt?: string;
-} & StrategyOptionsWithRequest;
+}
