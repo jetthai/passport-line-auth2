@@ -10,15 +10,13 @@ export class Strategy extends OAuth2Strategy {
 	private readonly _botPrompt?: string;
 	private readonly _prompt?: string;
 	private readonly _uiLocales?: string;
-	private readonly options: LineStrategyOptions | LineStrategyOptionsWithRequest;
-	private readonly verify: VerifyFunction | VerifyFunctionWithRequest;
 
 	constructor(options: LineStrategyOptions, verify: VerifyFunction);
 	constructor(options: LineStrategyOptionsWithRequest, verify: VerifyFunctionWithRequest);
 
 	constructor(
-		options: LineStrategyOptions | LineStrategyOptionsWithRequest,
-		verify: VerifyFunction | VerifyFunctionWithRequest,
+		private readonly options: LineStrategyOptions | LineStrategyOptionsWithRequest,
+		private readonly verify: VerifyFunction | VerifyFunctionWithRequest,
 	) {
 		if (!options) {
 			throw new TypeError('Options must be setting.');
