@@ -10,7 +10,19 @@ export const defaultOptions = {
 	uiLocales: null,
 };
 
-export interface LineStrategyOptions extends StrategyOptionsWithRequest {
+export interface LineStrategyOptionsWithRequest extends StrategyOptionsWithRequest {
+	channelID: string;
+	channelSecret: string;
+	botPrompt?: string;
+	scope?: string[];
+	uiLocales?: string;
+	authorizationURL: string;
+	tokenURL: string;
+	profileURL?: string;
+	prompt?: string;
+}
+
+export interface LineStrategyOptions extends StrategyOptions {
 	channelID: string;
 	channelSecret: string;
 	botPrompt?: string;

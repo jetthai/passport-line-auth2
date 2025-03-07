@@ -1,5 +1,5 @@
-import OAuth2Strategy, { InternalOAuthError, VerifyFunctionWithRequest } from 'passport-oauth2';
-import { defaultOptions, LineStrategyOptions } from './options';
+import OAuth2Strategy, { InternalOAuthError, VerifyFunction, VerifyFunctionWithRequest } from 'passport-oauth2';
+import { defaultOptions, LineStrategyOptions, LineStrategyOptionsWithRequest } from './options';
 import { Request } from 'express';
 import { LineAuthorizationError } from './errors';
 
@@ -10,31 +10,30 @@ export class Strategy extends OAuth2Strategy {
 	private readonly _botPrompt?: string;
 	private readonly _prompt?: string;
 	private readonly _uiLocales?: string;
+	private readonly options: LineStrategyOptions | LineStrategyOptionsWithRequest;
+	private readonly verify: VerifyFunction | VerifyFunctionWithRequest;
 
-	/**
-	 * 構造函數
-	 * @param _options - 策略的配置選項
-	 * @param verify - 用於驗證用戶身份的回調函數
-	 */
-	constructor(_options: LineStrategyOptions, verify: VerifyFunctionWithRequest) {
-		if (!_options) {
+	constructor(options: LineStrategyOptions, verify: VerifyFunction);
+	constructor(options: LineStrategyOptionsWithRequest, verify: VerifyFunctionWithRequest);
+
+	constructor(
+		options: LineStrategyOptions | LineStrategyOptionsWithRequest,
+		verify: VerifyFunction | VerifyFunctionWithRequest,
+	) {
+		if (!options) {
 			throw new TypeError('Options must be setting.');
 		}
-		if (!_options.channelID) {
+		if (!options.channelID) {
 			throw new TypeError("Channel's Id must be setting.");
 		}
-		if (!_options.channelSecret) {
+		if (!options.channelSecret) {
 			throw new TypeError("Channel's Secret must be setting.");
 		}
-
-		const options: LineStrategyOptions = { ..._options };
-		options.clientID = _options.channelID;
-		options.clientSecret = _options.channelSecret;
 		options.scopeSeparator = '';
 		options.state = true;
-		options.botPrompt = _options.botPrompt || defaultOptions.botPrompt;
-		options.scope = _options.scope || defaultOptions.scope;
-		options.uiLocales = _options.uiLocales || defaultOptions.uiLocales;
+		options.botPrompt = options.botPrompt || defaultOptions.botPrompt;
+		options.scope = options.scope || defaultOptions.scope;
+		options.uiLocales = options.uiLocales || defaultOptions.uiLocales;
 
 		options.authorizationURL = options.authorizationURL || defaultOptions.authorizationURL;
 		options.tokenURL = options.tokenURL || defaultOptions.tokenURL;
@@ -45,11 +44,15 @@ export class Strategy extends OAuth2Strategy {
 		if (!options.uiLocales) {
 			delete options.uiLocales;
 		}
-		if (!_options.prompt) {
+		if (!options.prompt) {
 			delete options.prompt;
 		}
 
-		super(options, verify);
+		if (options.passReqToCallback) {
+			super(options, verify as VerifyFunctionWithRequest);
+		} else {
+			super(options as LineStrategyOptions, verify as VerifyFunction);
+		}
 		this.name = 'line';
 		this._profileURL = options.profileURL || defaultOptions.profileURL;
 		this._clientId = options.clientID;

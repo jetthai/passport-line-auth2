@@ -20,6 +20,5 @@ export class LineAuthorizationError extends Error {
 		public readonly code: number,
 	) {
 		super(message);
-		Error.captureStackTrace(this, arguments.callee);
 	}
 }
