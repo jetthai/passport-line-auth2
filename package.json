@@ -39,18 +39,18 @@
   ],
   "dependencies": {
     "passport-oauth2": "^1.8.0",
-    "rimraf": "^6.1.0"
+    "rimraf": "^6.1.2"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3.3.1",
+    "@eslint/eslintrc": "^3.3.3",
     "@eslint/js": "^9.39.1",
     "@types/express": "^5.0.5",
-    "@types/node": "^24.10.0",
+    "@types/node": "^24.10.1",
     "@types/passport-oauth2": "^1.8.0",
-    "@typescript-eslint/eslint-plugin": "^8.46.3",
-    "@typescript-eslint/parser": "^8.46.3",
+    "@typescript-eslint/eslint-plugin": "^8.48.0",
+    "@typescript-eslint/parser": "^8.48.0",
     "ava": "^6.4.1",
-    "body-parser": "^2.2.0",
+    "body-parser": "^2.2.1",
     "codecov": "^3.8.3",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
@@ -63,13 +63,13 @@
     "globals": "^16.5.0",
     "jsonwebtoken": "^9.0.2",
     "nyc": "^17.1.0",
-    "prettier": "^3.6.2",
+    "prettier": "^3.7.3",
     "pug": "^3.0.3",
     "ts-loader": "^9.5.4",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.46.3"
+    "typescript-eslint": "^8.48.0"
   },
   "packageManager": "yarn@3.3.0"
 }

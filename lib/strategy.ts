@@ -2,6 +2,7 @@ import OAuth2Strategy, { InternalOAuthError, VerifyFunction, VerifyFunctionWithR
 import { defaultOptions, LineStrategyOptions, LineStrategyOptionsWithRequest } from './options';
 import { Request } from 'express';
 import { LineAuthorizationError } from './errors';
+import * as crypto from 'crypto';
 
 export class Strategy extends OAuth2Strategy {
 	private readonly _profileURL: string;
@@ -10,6 +11,7 @@ export class Strategy extends OAuth2Strategy {
 	private readonly _botPrompt?: string;
 	private readonly _prompt?: string;
 	private readonly _uiLocales?: string;
+	private _codeVerifier?: string;
 
 	constructor(options: LineStrategyOptions, verify: VerifyFunction);
 	constructor(options: LineStrategyOptionsWithRequest, verify: VerifyFunctionWithRequest);
@@ -81,6 +83,23 @@ export class Strategy extends OAuth2Strategy {
 	}
 
 	/**
+	 * 生成 PKCE code_verifier
+	 * @returns Base64 URL 編碼的隨機字串
+	 */
+	private generateCodeVerifier(): string {
+		return crypto.randomBytes(32).toString('base64url');
+	}
+
+	/**
+	 * 生成 PKCE code_challenge
+	 * @param codeVerifier - code_verifier 字串
+	 * @returns Base64 URL 編碼的 SHA256 雜湊值
+	 */
+	private generateCodeChallenge(codeVerifier: string): string {
+		return crypto.createHash('sha256').update(codeVerifier).digest('base64url');
+	}
+
+	/**
 	 * 獲取用戶資料
 	 * @param accessToken - 訪問令牌
 	 * @param done - 回調函數，返回用戶資料或錯誤
@@ -88,7 +107,7 @@ export class Strategy extends OAuth2Strategy {
 	userProfile(accessToken: string, done: (err: Error | null, profile?: any) => void): void {
 		const url = new URL(this._profileURL);
 
-		this._oauth2.get(url.toString(), accessToken, (err: any, body: any, res: any) => {
+		this._oauth2.get(url.toString(), accessToken, (err: any, body: any) => {
 			if (err) {
 				return done(new InternalOAuthError('Failed to fetch user profile', err));
 			}
@@ -119,6 +138,11 @@ export class Strategy extends OAuth2Strategy {
 	authorizationParams(_options: any): any {
 		const options = { ...(_options || {}) };
 
+		// 生成 PKCE 參數
+		this._codeVerifier = this.generateCodeVerifier();
+		options.code_challenge = this.generateCodeChallenge(this._codeVerifier);
+		options.code_challenge_method = 'S256';
+
 		if (this._botPrompt === 'normal' || this._botPrompt === 'aggressive') {
 			options.bot_prompt = this._botPrompt;
 		}
@@ -132,5 +156,21 @@ export class Strategy extends OAuth2Strategy {
 		}
 
 		return options;
+	}
+
+	/**
+	 * Token 請求參數
+	 * @param _options - 可選的選項
+	 * @returns Token 請求參數物件
+	 */
+	tokenParams(_options: any): any {
+		const params = { ...(_options || {}) };
+
+		// 添加 PKCE code_verifier
+		if (this._codeVerifier) {
+			params.code_verifier = this._codeVerifier;
+		}
+
+		return params;
 	}
 }
