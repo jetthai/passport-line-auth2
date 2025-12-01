@@ -104,7 +104,7 @@ export class Strategy extends OAuth2Strategy {
 	 * @param accessToken - 訪問令牌
 	 * @param done - 回調函數，返回用戶資料或錯誤
 	 */
-	userProfile(accessToken: string, done: (err: Error | null, profile?: any) => void): void {
+	userProfile(accessToken: string, done: (err: Error, profile?: any) => void): void {
 		const url = new URL(this._profileURL);
 
 		this._oauth2.get(url.toString(), accessToken, (err: any, body: any) => {
