@@ -11,14 +11,13 @@ export class Strategy extends OAuth2Strategy {
 	private readonly _botPrompt?: string;
 	private readonly _prompt?: string;
 	private readonly _uiLocales?: string;
-	private _codeVerifier?: string;
 
 	constructor(options: LineStrategyOptions, verify: VerifyFunction);
 	constructor(options: LineStrategyOptionsWithRequest, verify: VerifyFunctionWithRequest);
 
 	constructor(
-		private readonly options: LineStrategyOptions | LineStrategyOptionsWithRequest,
-		private readonly verify: VerifyFunction | VerifyFunctionWithRequest,
+		options: LineStrategyOptions | LineStrategyOptionsWithRequest,
+		verify: VerifyFunction | VerifyFunctionWithRequest,
 	) {
 		if (!options) {
 			throw new TypeError('Options must be setting.');
@@ -77,6 +76,24 @@ export class Strategy extends OAuth2Strategy {
 			return this.error(
 				new LineAuthorizationError(req.query.error_message as string, parseInt(req.query.error_code as string, 10)),
 			);
+		}
+
+		options = options || {};
+
+		if (req.query && req.query.code) {
+			// Callback phase
+			if ((req as any).session && (req as any).session.line_code_verifier) {
+				options.code_verifier = (req as any).session.line_code_verifier;
+			}
+		} else {
+			// Authorization phase
+			const codeVerifier = this.generateCodeVerifier();
+			options.code_challenge = this.generateCodeChallenge(codeVerifier);
+			options.code_challenge_method = 'S256';
+
+			if ((req as any).session) {
+				(req as any).session.line_code_verifier = codeVerifier;
+			}
 		}
 
 		super.authenticate(req, options);
@@ -138,11 +155,6 @@ export class Strategy extends OAuth2Strategy {
 	authorizationParams(_options: any): any {
 		const options = { ...(_options || {}) };
 
-		// 生成 PKCE 參數
-		this._codeVerifier = this.generateCodeVerifier();
-		options.code_challenge = this.generateCodeChallenge(this._codeVerifier);
-		options.code_challenge_method = 'S256';
-
 		if (this._botPrompt === 'normal' || this._botPrompt === 'aggressive') {
 			options.bot_prompt = this._botPrompt;
 		}
@@ -165,11 +177,6 @@ export class Strategy extends OAuth2Strategy {
 	 */
 	tokenParams(_options: any): any {
 		const params = { ...(_options || {}) };
-
-		// 添加 PKCE code_verifier
-		if (this._codeVerifier) {
-			params.code_verifier = this._codeVerifier;
-		}
 
 		return params;
 	}
