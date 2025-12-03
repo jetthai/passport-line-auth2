@@ -67,9 +67,25 @@ export class Strategy extends OAuth2Strategy {
 	}
 
 	/**
+	 * 生成 PKCE 參數
+	 * @returns 包含 codeVerifier 和 codeChallenge 的物件
+	 */
+	public static generatePKCE(): { codeVerifier: string; codeChallenge: string } {
+		const codeVerifier = crypto.randomBytes(32).toString('base64url');
+		const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
+		return { codeVerifier, codeChallenge };
+	}
+
+	/**
 	 * 身份驗證方法
 	 * @param req - HTTP 請求物件
 	 * @param options - 可選的策略特定選項
+	 *
+	 * Authorization phase (無 code):
+	 *   需傳入 options.code_challenge (可用 Strategy.generatePKCE() 生成)
+	 *
+	 * Callback phase (有 code):
+	 *   需傳入 options.code_verifier (從 Redis 取得)
 	 */
 	public authenticate(req: Request, options?: any): void {
 		if (req.query && req.query.error_code && !req.query.error) {
@@ -81,39 +97,15 @@ export class Strategy extends OAuth2Strategy {
 		options = options || {};
 
 		if (req.query && req.query.code) {
-			// Callback phase
-			if ((req as any).session && (req as any).session.line_code_verifier) {
-				options.code_verifier = (req as any).session.line_code_verifier;
-			}
+			// Callback phase: code_verifier 應由呼叫者透過 options.code_verifier 傳入
 		} else {
-			// Authorization phase
-			const codeVerifier = this.generateCodeVerifier();
-			options.code_challenge = this.generateCodeChallenge(codeVerifier);
-			options.code_challenge_method = 'S256';
-
-			if ((req as any).session) {
-				(req as any).session.line_code_verifier = codeVerifier;
+			// Authorization phase: 設定 code_challenge_method
+			if (options.code_challenge) {
+				options.code_challenge_method = 'S256';
 			}
 		}
 
 		super.authenticate(req, options);
-	}
-
-	/**
-	 * 生成 PKCE code_verifier
-	 * @returns Base64 URL 編碼的隨機字串
-	 */
-	private generateCodeVerifier(): string {
-		return crypto.randomBytes(32).toString('base64url');
-	}
-
-	/**
-	 * 生成 PKCE code_challenge
-	 * @param codeVerifier - code_verifier 字串
-	 * @returns Base64 URL 編碼的 SHA256 雜湊值
-	 */
-	private generateCodeChallenge(codeVerifier: string): string {
-		return crypto.createHash('sha256').update(codeVerifier).digest('base64url');
 	}
 
 	/**
@@ -172,11 +164,15 @@ export class Strategy extends OAuth2Strategy {
 
 	/**
 	 * Token 請求參數
-	 * @param _options - 可選的選項
+	 * @param options - 可選的選項
 	 * @returns Token 請求參數物件
 	 */
-	tokenParams(_options: any): any {
-		const params = { ...(_options || {}) };
+	tokenParams(options: any): any {
+		const params: any = {};
+
+		if (options && options.code_verifier) {
+			params.code_verifier = options.code_verifier;
+		}
 
 		return params;
 	}
