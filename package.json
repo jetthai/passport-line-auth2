@@ -1,6 +1,6 @@
 {
   "name": "@jetthai/passport-line-auth2",
-  "version": "2.1.5",
+  "version": "2.1.6",
   "description": "Line Authentication Strategy for Passport",
   "main": "./dist",
   "scripts": {
