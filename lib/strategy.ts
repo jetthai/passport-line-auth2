@@ -4,6 +4,43 @@ import { Request } from 'express';
 import { LineAuthorizationError } from './errors';
 import * as crypto from 'crypto';
 
+/**
+ * 基於 PKCEStore 的 StateStore 包裝器
+ * 讓 passport-oauth2 的 state 也使用相同的 store（如 Redis）
+ */
+class PKCEStateStore {
+	private readonly keyPrefix = 'state:';
+
+	constructor(private readonly pkceStore: PKCEStore) {}
+
+	store(req: Request, callback: (err: Error | null, state: string) => void): void {
+		const state = crypto.randomBytes(24).toString('hex');
+		// 使用 PKCEStore 儲存 state（用 state 作為 key 和 value）
+		this.pkceStore.store(this.keyPrefix + state, state, (err) => {
+			if (err) {
+				return callback(err, '');
+			}
+			callback(null, state);
+		});
+	}
+
+	verify(
+		req: Request,
+		providedState: string,
+		callback: (err: Error | null, ok: boolean, state?: string) => void,
+	): void {
+		this.pkceStore.verify(this.keyPrefix + providedState, (err, storedState) => {
+			if (err) {
+				return callback(err, false);
+			}
+			if (!storedState || storedState !== providedState) {
+				return callback(null, false);
+			}
+			callback(null, true, providedState);
+		});
+	}
+}
+
 export class Strategy extends OAuth2Strategy {
 	private readonly _profileURL: string;
 	private readonly _clientId: string;
@@ -37,8 +74,19 @@ export class Strategy extends OAuth2Strategy {
 		(options as any).clientSecret = options.channelSecret;
 
 		options.scopeSeparator = '';
-		options.state = true;
 		options.botPrompt = options.botPrompt ?? defaultOptions.botPrompt;
+
+		// 判斷是否使用自定義 PKCEStore
+		const pkceConfig = options.pkce;
+		const hasCustomStore = pkceConfig && typeof pkceConfig === 'object' && pkceConfig.store;
+
+		// 如果有自定義 store，使用 PKCEStateStore；否則使用 session (state: true)
+		if (hasCustomStore) {
+			(options as any).store = new PKCEStateStore(pkceConfig.store);
+			(options as any).state = undefined; // 不使用內建的 session state
+		} else {
+			(options as any).state = true; // 使用 session
+		}
 		options.scope = options.scope || defaultOptions.scope;
 		options.uiLocales = options.uiLocales ?? defaultOptions.uiLocales;
 
