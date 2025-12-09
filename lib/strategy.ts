@@ -104,12 +104,20 @@ export class Strategy extends OAuth2Strategy {
 			delete options.prompt;
 		}
 
-		// 使用 as any 繞過類型檢查，因為我們擴展了 pkce 的類型
+		// 儲存 PKCE 配置後，刪除 options.pkce 避免傳給 passport-oauth2
+		// passport-oauth2 期望 pkce 是 boolean，但我們的是物件
+		const pkceOptionBackup = options.pkce;
+		delete (options as any).pkce;
+
+		// 使用 as any 繞過類型檢查
 		if (options.passReqToCallback) {
 			super(options as any, verify as VerifyFunctionWithRequest);
 		} else {
 			super(options as any, verify as VerifyFunction);
 		}
+
+		// 恢復 pkce 設定供後續使用
+		(options as any).pkce = pkceOptionBackup;
 		this.name = 'line';
 		this._profileURL = options.profileURL || defaultOptions.profileURL;
 		this._clientId = options.channelID;
