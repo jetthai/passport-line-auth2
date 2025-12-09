@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { PKCEStore } from '../../lib';
+import { PKCEStore, PKCEStoreCallback, PKCEVerifyCallback } from '../../lib';
 
 /**
  * Redis Service 介面（根據你的專案實作）
  */
-interface RedisService {
+export interface RedisService {
 	get(key: string): Promise<string | null>;
 	set(key: string, value: string, ttlSeconds?: number): Promise<void>;
 	del(key: string): Promise<void>;
@@ -31,18 +31,18 @@ export class RedisPKCEStore implements PKCEStore {
 	/**
 	 * 儲存資料
 	 */
-	store(key: string, value: string, callback: (err: Error) => void): void {
+	store(key: string, value: string, callback: PKCEStoreCallback): void {
 		const redisKey = this.keyPrefix + key;
 		this.redis
 			.set(redisKey, value, this.ttlSeconds)
-			.then(() => callback(null as unknown as Error))
+			.then(() => callback(null))
 			.catch((err) => callback(err));
 	}
 
 	/**
 	 * 驗證並取得資料（取得後自動刪除）
 	 */
-	verify(key: string, callback: (err: Error, value?: string) => void): void {
+	verify(key: string, callback: PKCEVerifyCallback): void {
 		const redisKey = this.keyPrefix + key;
 		this.redis
 			.get(redisKey)
@@ -50,7 +50,7 @@ export class RedisPKCEStore implements PKCEStore {
 				if (value) {
 					this.redis.del(redisKey).catch(() => {});
 				}
-				callback(null as unknown as Error, value || undefined);
+				callback(null, value || undefined);
 			})
 			.catch((err) => callback(err));
 	}

@@ -6,7 +6,7 @@
  */
 
 // Stores
-export { RedisPKCEStore } from './redis-pkce-store';
+export { RedisPKCEStore, RedisService } from './redis-pkce-store';
 
 // Strategies
 export { LineLoginStrategyService, LineLoginConfig, LineProfile, PKCEStore } from './line-login.strategy';
@@ -22,3 +22,6 @@ export { AuthController, SimpleLineAuthController } from './auth.controller';
 
 // Modules
 export { AuthModule } from './auth.module';
+
+// Re-export callback types from main package
+export { PKCEStoreCallback, PKCEVerifyCallback } from '../../lib';
