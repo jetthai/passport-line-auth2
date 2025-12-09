@@ -1,12 +1,16 @@
 // Load modules.
-export { Strategy } from './strategy';
+export { Strategy, AuthenticateOptions } from './strategy';
 export { LineAuthorizationError } from './errors';
 export {
 	LineStrategyOptions,
 	LineStrategyOptionsWithRequest,
 	PKCEStore,
-	PKCEStoreCallback,
-	PKCEVerifyCallback,
+	PKCEStoreMeta,
+	StoreCallback,
+	VerifyCallback,
 	PKCEOptions,
 	LineProfile,
+	// 向後相容的類型別名
+	PKCEStoreCallback,
+	PKCEVerifyCallback,
 } from './options';

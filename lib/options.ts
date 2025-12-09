@@ -1,3 +1,4 @@
+import { Request } from 'express';
 import { StrategyOptions, StrategyOptionsWithRequest } from 'passport-oauth2';
 
 /**
@@ -24,19 +25,31 @@ export const defaultOptions = {
 /**
  * PKCEStore.store 方法的回調函數類型
  * @param err - 錯誤物件，成功時為 null
+ * @param handle - 可選的 handle（state 識別符），若不提供則使用傳入的 state
  */
-export type PKCEStoreCallback = (err: Error | null) => void;
+export type StoreCallback = (err: Error | null, handle?: string) => void;
 
 /**
  * PKCEStore.verify 方法的回調函數類型
  * @param err - 錯誤物件，成功時為 null
- * @param codeVerifier - 取得的 code_verifier，找不到時為 undefined
+ * @param ok - code_verifier 字串，或 false 表示驗證失敗
+ * @param state - 可選的 state 值
  */
-export type PKCEVerifyCallback = (err: Error | null, codeVerifier?: string) => void;
+export type VerifyCallback = (err: Error | null, ok?: string | false, state?: string) => void;
+
+/**
+ * PKCE Store 的 metadata
+ */
+export interface PKCEStoreMeta {
+	authorizationURL: string;
+	tokenURL: string;
+	clientID: string;
+}
 
 /**
  * PKCE Store 介面
  * 用於儲存和取得 code_verifier 及 OAuth state
+ * 介面設計與 passport-twitter-oauth2-typescript 一致
  *
  * 當使用自定義 store 時，Strategy 會同時使用此 store 來儲存：
  * 1. OAuth state（用於 CSRF 防護）
@@ -45,17 +58,32 @@ export type PKCEVerifyCallback = (err: Error | null, codeVerifier?: string) => v
  * @example
  * ```typescript
  * class RedisPKCEStore implements PKCEStore {
- *   store(key: string, value: string, callback: PKCEStoreCallback): void {
- *     redis.set(key, value, 'EX', 600)
- *       .then(() => callback(null))
+ *   store(
+ *     req: Request,
+ *     verifier: string,
+ *     state: string | null,
+ *     meta: PKCEStoreMeta,
+ *     callback: StoreCallback
+ *   ): void {
+ *     const key = state || crypto.randomBytes(16).toString('hex');
+ *     redis.set(`pkce:${key}`, verifier, 'EX', 600)
+ *       .then(() => callback(null, key))
  *       .catch(callback);
  *   }
  *
- *   verify(key: string, callback: PKCEVerifyCallback): void {
- *     redis.get(key)
- *       .then((value) => {
- *         if (value) redis.del(key);
- *         callback(null, value || undefined);
+ *   verify(
+ *     req: Request,
+ *     providedState: string,
+ *     callback: VerifyCallback
+ *   ): void {
+ *     redis.get(`pkce:${providedState}`)
+ *       .then((verifier) => {
+ *         if (verifier) {
+ *           redis.del(`pkce:${providedState}`);
+ *           callback(null, verifier, providedState);
+ *         } else {
+ *           callback(null, false);
+ *         }
  *       })
  *       .catch(callback);
  *   }
@@ -64,20 +92,29 @@ export type PKCEVerifyCallback = (err: Error | null, codeVerifier?: string) => v
  */
 export interface PKCEStore {
 	/**
-	 * 儲存資料
-	 * @param key - 儲存的 key（state 或其他識別符）
-	 * @param value - 要儲存的值（state 值或 code_verifier）
-	 * @param callback - 完成回調，成功時呼叫 callback(null)，失敗時呼叫 callback(error)
+	 * 儲存 PKCE code_verifier 和 state
+	 * @param req - Express request 物件
+	 * @param verifier - PKCE code_verifier
+	 * @param state - state 參數（可為 null）
+	 * @param meta - metadata 物件，包含 authorizationURL、tokenURL、clientID
+	 * @param callback - 完成回調，成功時呼叫 callback(null, handle)，失敗時呼叫 callback(error)
 	 */
-	store(key: string, value: string, callback: PKCEStoreCallback): void;
+	store(req: Request, verifier: string, state: string | null, meta: PKCEStoreMeta, callback: StoreCallback): void;
 
 	/**
-	 * 驗證並取得資料（建議取得後刪除）
-	 * @param key - 要驗證的 key
-	 * @param callback - 完成回調，成功時呼叫 callback(null, value)，失敗時呼叫 callback(error)
+	 * 驗證並取得 code_verifier
+	 * @param req - Express request 物件
+	 * @param providedState - 從授權伺服器返回的 state 參數
+	 * @param callback - 完成回調，成功時呼叫 callback(null, verifier, state)，失敗時呼叫 callback(null, false)
 	 */
-	verify(key: string, callback: PKCEVerifyCallback): void;
+	verify(req: Request, providedState: string, callback: VerifyCallback): void;
 }
+
+// 保留舊的類型別名以維持向後相容
+/** @deprecated 請使用 StoreCallback */
+export type PKCEStoreCallback = (err: Error | null) => void;
+/** @deprecated 請使用 VerifyCallback */
+export type PKCEVerifyCallback = (err: Error | null, codeVerifier?: string) => void;
 
 /**
  * PKCE 配置選項

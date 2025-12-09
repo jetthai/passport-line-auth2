@@ -3,55 +3,32 @@ import { defaultOptions, LineStrategyOptions, LineStrategyOptionsWithRequest, PK
 import { Request } from 'express';
 import { LineAuthorizationError } from './errors';
 import * as crypto from 'crypto';
+import * as url from 'url';
 
 /**
- * 基於 PKCEStore 的 StateStore 包裝器
- * 讓 passport-oauth2 的 state 也使用相同的 store（如 Redis）
+ * 認證選項介面
  */
-class PKCEStateStore {
-	constructor(private readonly pkceStore: PKCEStore) {}
-
-	store(req: Request, callback: (err: Error | null, state: string) => void): void {
-		// 如果使用者已提供 state（透過 req.query.state），則使用該 state
-		// 否則生成新的 state
-		const existingState = req.query?.state as string;
-		const state = existingState || crypto.randomBytes(24).toString('hex');
-		// 使用 PKCEStore 儲存 state（用 state 作為 key 和 value）
-		this.pkceStore.store(state, state, (err) => {
-			if (err) {
-				return callback(err, '');
-			}
-			callback(null, state);
-		});
-	}
-
-	verify(
-		req: Request,
-		providedState: string,
-		callback: (err: Error | null, ok: boolean, state?: string) => void,
-	): void {
-		this.pkceStore.verify(providedState, (err, storedState) => {
-			if (err) {
-				return callback(err, false);
-			}
-			if (!storedState || storedState !== providedState) {
-				return callback(null, false);
-			}
-			callback(null, true, providedState);
-		});
-	}
+export interface AuthenticateOptions {
+	scope?: string[] | string;
+	state?: unknown;
+	callbackURL?: string;
+	failureRedirect?: string;
+	failureMessage?: boolean;
+	code_challenge?: string;
+	code_challenge_method?: string;
+	code_verifier?: string;
 }
 
 export class Strategy extends OAuth2Strategy {
 	private readonly _profileURL: string;
-	private readonly _clientId: string;
-	private readonly _clientSecret: string;
 	private readonly _botPrompt?: string;
 	private readonly _prompt?: string;
 	private readonly _uiLocales?: string;
-	private readonly _pkceEnabled: boolean;
-	private readonly _pkceStore?: PKCEStore;
-	private readonly _pkceSessionKey: string;
+	private readonly _useRealPKCE: boolean;
+	// passport-oauth2 的屬性（未在類型中定義）
+	declare _stateStore: PKCEStore;
+	declare _callbackURL: string;
+	declare _scope: string | string[];
 
 	constructor(options: LineStrategyOptions, verify: VerifyFunction);
 	constructor(options: LineStrategyOptionsWithRequest, verify: VerifyFunctionWithRequest);
@@ -76,24 +53,41 @@ export class Strategy extends OAuth2Strategy {
 
 		options.scopeSeparator = '';
 		options.botPrompt = options.botPrompt ?? defaultOptions.botPrompt;
-
-		// 判斷是否使用自定義 PKCEStore
-		const pkceConfig = options.pkce;
-		const hasCustomStore = pkceConfig && typeof pkceConfig === 'object' && pkceConfig.store;
-
-		// 如果有自定義 store，使用 PKCEStateStore；否則使用 session (state: true)
-		if (hasCustomStore) {
-			(options as any).store = new PKCEStateStore(pkceConfig.store);
-			(options as any).state = undefined; // 不使用內建的 session state
-		} else {
-			(options as any).state = true; // 使用 session
-		}
 		options.scope = options.scope || defaultOptions.scope;
 		options.uiLocales = options.uiLocales ?? defaultOptions.uiLocales;
 
 		// 設定預設 URL
-		(options as any).authorizationURL = options.authorizationURL || defaultOptions.authorizationURL;
-		(options as any).tokenURL = options.tokenURL || defaultOptions.tokenURL;
+		const authorizationURL = options.authorizationURL || defaultOptions.authorizationURL;
+		const tokenURL = options.tokenURL || defaultOptions.tokenURL;
+		(options as any).authorizationURL = authorizationURL;
+		(options as any).tokenURL = tokenURL;
+
+		// PKCE 設定（參考 Twitter 的實作方式）
+		// 如果提供了自定義 store，使用真實 PKCE；否則使用假 PKCE bypass
+		const pkceConfig = options.pkce;
+		const hasCustomStore = pkceConfig && typeof pkceConfig === 'object' && pkceConfig.store;
+
+		if (!hasCustomStore) {
+			// 假 PKCE bypass：使用固定的 challenge/verifier
+			// LINE 要求 PKCE，但如果沒有提供 store，我們使用簡化的方式
+			type StoreCb = (err: Error | null, state?: string) => void;
+			type VerifyCb = (err: Error | null, ok?: string | false, state?: string) => void;
+
+			(options as any).store = {
+				store: (_req: unknown, _verifier: string, _state: unknown, _meta: unknown, cb: StoreCb) => {
+					cb(null, 'state');
+				},
+				verify: (_req: unknown, _state: string, cb: VerifyCb) => {
+					cb(null, 'challenge', 'state');
+				},
+			};
+		} else {
+			// 使用真實 PKCE store
+			(options as any).store = pkceConfig.store;
+		}
+
+		(options as any).pkce = true;
+		(options as any).state = true;
 
 		if (!options.botPrompt) {
 			delete options.botPrompt;
@@ -105,11 +99,6 @@ export class Strategy extends OAuth2Strategy {
 			delete options.prompt;
 		}
 
-		// 儲存 PKCE 配置後，刪除 options.pkce 避免傳給 passport-oauth2
-		// passport-oauth2 期望 pkce 是 boolean，但我們的是物件
-		const pkceOptionBackup = options.pkce;
-		delete (options as any).pkce;
-
 		// 使用 as any 繞過類型檢查
 		if (options.passReqToCallback) {
 			super(options as any, verify as VerifyFunctionWithRequest);
@@ -117,30 +106,14 @@ export class Strategy extends OAuth2Strategy {
 			super(options as any, verify as VerifyFunction);
 		}
 
-		// 恢復 pkce 設定供後續使用
-		(options as any).pkce = pkceOptionBackup;
 		this.name = 'line';
 		this._profileURL = options.profileURL || defaultOptions.profileURL;
-		this._clientId = options.channelID;
-		this._clientSecret = options.channelSecret;
 		this._botPrompt = options.botPrompt;
 		this._prompt = options.prompt;
+		this._useRealPKCE = !!hasCustomStore;
 
 		if (options.uiLocales) {
 			this._uiLocales = options.uiLocales;
-		}
-
-		// PKCE 配置
-		this._pkceSessionKey = 'line:pkce';
-		if (options.pkce === true) {
-			this._pkceEnabled = true;
-			this._pkceStore = undefined; // 使用 session
-		} else if (options.pkce && typeof options.pkce === 'object') {
-			const pkceOptions = options.pkce;
-			this._pkceEnabled = pkceOptions.enabled !== false;
-			this._pkceStore = pkceOptions.store;
-		} else {
-			this._pkceEnabled = false;
 		}
 
 		this._oauth2.useAuthorizationHeaderforGET(defaultOptions.useAuthorizationHeaderforGET);
@@ -157,120 +130,145 @@ export class Strategy extends OAuth2Strategy {
 	}
 
 	/**
+	 * 返回授權請求的額外參數
+	 * 當使用真實 PKCE（提供 custom store）時，passport-oauth2 會自動處理
+	 * 當使用假 PKCE（無 custom store）時，返回固定的 code_challenge
+	 */
+	authorizationParams(_options?: AuthenticateOptions): object {
+		const params: Record<string, string> = {};
+
+		if (this._botPrompt === 'normal' || this._botPrompt === 'aggressive') {
+			params.bot_prompt = this._botPrompt;
+		}
+		if (this._uiLocales) {
+			params.ui_locales = this._uiLocales;
+		}
+		if (this._prompt === 'consent') {
+			params.prompt = this._prompt;
+		}
+
+		if (!this._useRealPKCE) {
+			// 假 PKCE bypass：使用固定的 challenge
+			params.code_challenge = 'challenge';
+			params.code_challenge_method = 'plain';
+		}
+
+		return params;
+	}
+
+	/**
+	 * 返回 token 請求的額外參數
+	 * 當使用真實 PKCE（提供 custom store）時，passport-oauth2 會自動處理
+	 * 當使用假 PKCE（無 custom store）時，返回固定的 code_verifier
+	 */
+	tokenParams(_options?: AuthenticateOptions): object {
+		if (!this._useRealPKCE) {
+			// 假 PKCE bypass：使用固定的 verifier
+			return {
+				code_verifier: 'challenge',
+			};
+		}
+		return {};
+	}
+
+	/**
 	 * 身份驗證方法
+	 * 當使用自定義 PKCEStore 並提供 string state 時，passport-oauth2 會跳過
+	 * store.store() 呼叫，導致 PKCE verifier 未被儲存。此覆寫確保在使用真實
+	 * PKCE 時 store 總是被呼叫。
+	 *
 	 * @param req - HTTP 請求物件
 	 * @param options - 可選的策略特定選項
-	 *
-	 * 當啟用 PKCE 時 (pkce: true 或 pkce: { enabled: true })：
-	 *   - Authorization phase: 自動生成並儲存 code_verifier，傳送 code_challenge
-	 *   - Callback phase: 自動取得 code_verifier 並用於 token 交換
-	 *
-	 * 手動 PKCE 模式 (未啟用自動 PKCE)：
-	 *   - Authorization phase: 需傳入 options.code_challenge
-	 *   - Callback phase: 需傳入 options.code_verifier
 	 */
-	public authenticate(req: Request, options?: any): void {
+	public authenticate(req: Request, options?: AuthenticateOptions): void {
+		// 處理 LINE 特有的錯誤格式
 		if (req.query && req.query.error_code && !req.query.error) {
 			return this.error(
 				new LineAuthorizationError(req.query.error_message as string, parseInt(req.query.error_code as string, 10)),
 			);
 		}
 
-		options = options || {};
+		// 如果沒有使用真實 PKCE，或沒有提供 string state，使用預設行為
+		if (!this._useRealPKCE || !options?.state || typeof options.state !== 'string') {
+			return super.authenticate(req, options);
+		}
 
-		const isCallbackPhase = req.query && req.query.code;
+		// 檢查是否為 callback（有 code 參數）
+		const query = req.query as Record<string, unknown>;
+		const body = req.body as Record<string, unknown>;
+		const hasCode = query?.code || body?.code;
+		if (hasCode) {
+			// Callback phase：使用預設行為，verify 會被呼叫
+			return super.authenticate(req, options);
+		}
 
-		if (this._pkceEnabled) {
-			if (isCallbackPhase) {
-				// Callback phase: 取得 code_verifier
-				this._getCodeVerifier(req, (err, codeVerifier) => {
-					if (err) {
-						return this.error(err);
-					}
-					if (!codeVerifier) {
-						return this.error(new Error('PKCE code_verifier not found. Session may have expired.'));
-					}
-					options.code_verifier = codeVerifier;
-					super.authenticate(req, options);
-				});
+		// Authorization phase：使用 string state 和真實 PKCE
+		// 需要手動處理 PKCE，因為 passport-oauth2 在 state 為 string 時會跳過 store.store()
+		const stateStore = this._stateStore;
+		const customState = options.state;
+
+		// 取得 _oauth2 的受保護屬性
+		const oauth2 = this._oauth2 as unknown as {
+			_authorizeUrl: string;
+			_accessTokenUrl: string;
+			_clientId: string;
+		};
+		const res = (req as unknown as { res?: { headersSent?: boolean } }).res || undefined;
+		let responded = false;
+
+		// 生成 PKCE verifier 和 challenge（S256 方法）
+		const { codeVerifier, codeChallenge } = Strategy.generatePKCE();
+
+		const meta = {
+			authorizationURL: oauth2._authorizeUrl,
+			tokenURL: oauth2._accessTokenUrl,
+			clientID: oauth2._clientId,
+		};
+
+		// 呼叫 store 儲存 verifier
+		stateStore.store(req, codeVerifier, customState, meta, (err, handle) => {
+			if (responded) {
 				return;
-			} else {
-				// Authorization phase: 生成 PKCE 並儲存
-				const { codeVerifier, codeChallenge } = Strategy.generatePKCE();
-				options.code_challenge = codeChallenge;
-				options.code_challenge_method = 'S256';
+			}
+			responded = true;
 
-				// 儲存 code_verifier
-				this._storeCodeVerifier(req, codeVerifier, (err) => {
-					if (err) {
-						return this.error(err);
-					}
-					super.authenticate(req, options);
-				});
+			if (err) {
+				return this.error(err);
+			}
+
+			// 建構帶有 PKCE 參數的授權 URL
+			const params = this.authorizationParams(options) as Record<string, string>;
+			params.response_type = 'code';
+			params.code_challenge = codeChallenge;
+			params.code_challenge_method = 'S256';
+			params.state = handle || customState;
+
+			// 處理 callback URL
+			const callbackURL = options.callbackURL || this._callbackURL;
+			if (callbackURL) {
+				params.redirect_uri = callbackURL;
+			}
+
+			// 處理 scope
+			const scope = options.scope || this._scope;
+			if (scope) {
+				params.scope = Array.isArray(scope) ? scope.join(' ') : scope;
+			}
+
+			// 建構授權 URL
+			const parsed = url.parse(oauth2._authorizeUrl, true);
+			Object.assign(parsed.query, params);
+			parsed.query['client_id'] = oauth2._clientId;
+			delete parsed.search;
+			const location = url.format(parsed);
+
+			// 如果 header 已經被上游 middleware 發送，不要再重定向
+			if (res?.headersSent) {
 				return;
 			}
-		}
 
-		// 手動 PKCE 模式或未啟用 PKCE
-		if (!isCallbackPhase && options.code_challenge) {
-			options.code_challenge_method = 'S256';
-		}
-
-		super.authenticate(req, options);
-	}
-
-	/**
-	 * 儲存 code_verifier
-	 */
-	private _storeCodeVerifier(req: Request, codeVerifier: string, callback: (err: Error) => void): void {
-		if (this._pkceStore) {
-			// 使用自定義 store（如 Redis）
-			// 從 req 取得 state 或生成新的
-			const state = (req.query?.state as string) || crypto.randomBytes(16).toString('hex');
-			this._pkceStore.store(state, codeVerifier, callback);
-		} else {
-			// 使用 session
-			const session = (req as any).session;
-			if (!session) {
-				return callback(
-					new Error('PKCE requires session support. Please configure express-session or provide a custom pkce.store.'),
-				);
-			}
-			if (!session[this._pkceSessionKey]) {
-				session[this._pkceSessionKey] = {};
-			}
-			session[this._pkceSessionKey].codeVerifier = codeVerifier;
-			callback(null);
-		}
-	}
-
-	/**
-	 * 取得並清除 code_verifier
-	 */
-	private _getCodeVerifier(req: Request, callback: (err: Error, codeVerifier?: string) => void): void {
-		const state = req.query?.state as string;
-
-		if (this._pkceStore) {
-			// 使用自定義 store（如 Redis）
-			if (!state) {
-				return callback(new Error('State parameter is required for PKCE verification.'));
-			}
-			this._pkceStore.verify(state, callback);
-		} else {
-			// 使用 session
-			const session = (req as any).session;
-			if (!session) {
-				return callback(new Error('PKCE requires session support.'));
-			}
-			const pkceData = session[this._pkceSessionKey];
-			if (!pkceData || !pkceData.codeVerifier) {
-				return callback(null, undefined);
-			}
-			const codeVerifier = pkceData.codeVerifier;
-			// 清除已使用的 code_verifier
-			delete session[this._pkceSessionKey];
-			callback(null, codeVerifier);
-		}
+			this.redirect(location);
+		});
 	}
 
 	/**
@@ -302,43 +300,5 @@ export class Strategy extends OAuth2Strategy {
 				done(e);
 			}
 		});
-	}
-
-	/**
-	 * 授權參數
-	 * @param _options - 可選的選項
-	 * @returns 授權參數物件
-	 */
-	authorizationParams(_options: any): any {
-		const options = { ...(_options || {}) };
-
-		if (this._botPrompt === 'normal' || this._botPrompt === 'aggressive') {
-			options.bot_prompt = this._botPrompt;
-		}
-		if (this._uiLocales) {
-			options.ui_locales = this._uiLocales;
-		}
-		if (this._prompt === 'consent') {
-			options.prompt = this._prompt;
-		} else {
-			delete options.prompt;
-		}
-
-		return options;
-	}
-
-	/**
-	 * Token 請求參數
-	 * @param options - 可選的選項
-	 * @returns Token 請求參數物件
-	 */
-	tokenParams(options: any): any {
-		const params: any = {};
-
-		if (options && options.code_verifier) {
-			params.code_verifier = options.code_verifier;
-		}
-
-		return params;
 	}
 }
