@@ -1,5 +1,16 @@
 import { StrategyOptions, StrategyOptionsWithRequest } from 'passport-oauth2';
 
+/**
+ * LINE 使用者資料
+ */
+export interface LineProfile {
+	provider: 'line';
+	id: string;
+	displayName: string;
+	pictureUrl?: string;
+	_raw: string;
+}
+
 export const defaultOptions = {
 	useAuthorizationHeaderforGET: true,
 	authorizationURL: 'https://access.line.me/oauth2/v2.1/authorize',
