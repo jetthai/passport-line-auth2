@@ -2,6 +2,8 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [2.1.2](https://github.com/jetthai/passport-line-auth2/compare/v2.1.1...v2.1.2) (2025-12-09)
+
 ### [2.1.1](https://github.com/jetthai/passport-line-auth2/compare/v2.0.24...v2.1.1) (2025-12-03)
 
 ### [2.0.24](https://github.com/jetthai/passport-line-auth2/compare/v2.0.23...v2.0.24) (2025-12-02)
