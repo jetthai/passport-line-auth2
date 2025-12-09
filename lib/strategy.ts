@@ -9,14 +9,15 @@ import * as crypto from 'crypto';
  * 讓 passport-oauth2 的 state 也使用相同的 store（如 Redis）
  */
 class PKCEStateStore {
-	private readonly keyPrefix = 'state:';
-
 	constructor(private readonly pkceStore: PKCEStore) {}
 
 	store(req: Request, callback: (err: Error | null, state: string) => void): void {
-		const state = crypto.randomBytes(24).toString('hex');
+		// 如果使用者已提供 state（透過 req.query.state），則使用該 state
+		// 否則生成新的 state
+		const existingState = req.query?.state as string;
+		const state = existingState || crypto.randomBytes(24).toString('hex');
 		// 使用 PKCEStore 儲存 state（用 state 作為 key 和 value）
-		this.pkceStore.store(this.keyPrefix + state, state, (err) => {
+		this.pkceStore.store(state, state, (err) => {
 			if (err) {
 				return callback(err, '');
 			}
@@ -29,7 +30,7 @@ class PKCEStateStore {
 		providedState: string,
 		callback: (err: Error | null, ok: boolean, state?: string) => void,
 	): void {
-		this.pkceStore.verify(this.keyPrefix + providedState, (err, storedState) => {
+		this.pkceStore.verify(providedState, (err, storedState) => {
 			if (err) {
 				return callback(err, false);
 			}
